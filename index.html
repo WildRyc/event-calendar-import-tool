@@ -1,0 +1,888 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F2F Events Calendar Converter</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #0a0c0f;
+    --surface: #111418;
+    --surface2: #181d23;
+    --border: #252b34;
+    --accent: #e8c840;
+    --accent2: #4fc3f7;
+    --danger: #ef5350;
+    --success: #66bb6a;
+    --text: #e8eaed;
+    --text-dim: #7a8694;
+    --text-dimmer: #3d4754;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Noise texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 0 40px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    height: 64px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .logo-mark {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 2px;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  .logo-mark span {
+    color: var(--text-dim);
+    font-size: 14px;
+    letter-spacing: 4px;
+    display: block;
+    margin-top: -4px;
+  }
+
+  .header-divider {
+    width: 1px;
+    height: 32px;
+    background: var(--border);
+  }
+
+  .header-subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .header-badge {
+    margin-left: auto;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    color: var(--accent);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    padding: 4px 10px;
+    border-radius: 2px;
+  }
+
+  main {
+    flex: 1;
+    padding: 40px;
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .page-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 52px;
+    letter-spacing: 3px;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+
+  .page-title em {
+    color: var(--accent);
+    font-style: normal;
+  }
+
+  .page-desc {
+    color: var(--text-dim);
+    font-size: 14px;
+    margin-bottom: 40px;
+    font-weight: 300;
+    letter-spacing: 0.3px;
+  }
+
+  /* ── SETTINGS PANEL ── */
+  .settings-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 24px 28px;
+    margin-bottom: 28px;
+  }
+
+  .settings-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent2);
+    margin-bottom: 18px;
+  }
+
+  .settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px 32px;
+  }
+
+  .setting-item label {
+    display: block;
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .setting-item input[type="text"] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    padding: 8px 12px;
+    border-radius: 2px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .setting-item input[type="text"]:focus {
+    border-color: var(--accent2);
+  }
+
+  .setting-full { grid-column: 1 / -1; }
+
+  .setting-item textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    padding: 8px 12px;
+    border-radius: 2px;
+    outline: none;
+    resize: vertical;
+    min-height: 72px;
+    transition: border-color 0.15s;
+    line-height: 1.5;
+  }
+
+  .setting-item textarea:focus {
+    border-color: var(--accent2);
+  }
+
+  /* ── DROP ZONE ── */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 4px;
+    padding: 48px;
+    text-align: center;
+    transition: all 0.2s;
+    cursor: pointer;
+    background: var(--surface);
+    margin-bottom: 28px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .drop-zone::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 70%);
+    pointer-events: none;
+  }
+
+  .drop-zone.dragover {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+  }
+
+  .drop-zone.has-file {
+    border-color: var(--success);
+    border-style: solid;
+  }
+
+  .drop-icon {
+    font-size: 36px;
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  .drop-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+  }
+
+  .drop-sub {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .file-input { display: none; }
+
+  /* ── PREVIEW TABLE ── */
+  .preview-section {
+    display: none;
+    margin-bottom: 28px;
+  }
+
+  .preview-section.visible { display: block; }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .section-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .section-count {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    padding: 2px 8px;
+    border-radius: 2px;
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+  }
+
+  thead th {
+    background: var(--surface2);
+    padding: 10px 14px;
+    text-align: left;
+    color: var(--text-dim);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    font-size: 9px;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+  }
+
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+
+  tbody td {
+    padding: 9px 14px;
+    color: var(--text);
+    white-space: nowrap;
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  tbody td.mono { font-family: 'DM Mono', monospace; font-size: 10px; }
+
+  .tag-chip {
+    display: inline-block;
+    background: color-mix(in srgb, var(--accent2) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent2) 25%, transparent);
+    color: var(--accent2);
+    font-size: 9px;
+    letter-spacing: 1px;
+    padding: 2px 6px;
+    border-radius: 2px;
+    margin-right: 3px;
+    white-space: nowrap;
+  }
+
+  .cat-chip {
+    display: inline-block;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+    color: var(--accent);
+    font-size: 9px;
+    letter-spacing: 1px;
+    padding: 2px 6px;
+    border-radius: 2px;
+    margin-right: 3px;
+    white-space: nowrap;
+  }
+
+  /* ── ERRORS ── */
+  .errors-section {
+    display: none;
+    margin-bottom: 28px;
+    background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+    border-radius: 4px;
+    padding: 16px 20px;
+  }
+
+  .errors-section.visible { display: block; }
+  .errors-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--danger);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  .error-item {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: color-mix(in srgb, var(--danger) 70%, var(--text));
+    padding: 3px 0;
+  }
+
+  /* ── ACTIONS ── */
+  .actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #0a0c0f;
+    font-weight: 600;
+  }
+
+  .btn-primary:not(:disabled):hover {
+    background: color-mix(in srgb, var(--accent) 85%, white);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+  }
+
+  .btn-secondary:not(:disabled):hover {
+    color: var(--text);
+    border-color: color-mix(in srgb, var(--text) 40%, transparent);
+  }
+
+  .status-msg {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--success);
+    letter-spacing: 1px;
+    margin-left: auto;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .status-msg.show { opacity: 1; }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 16px 40px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dimmer);
+    letter-spacing: 1.5px;
+    position: relative;
+    z-index: 1;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark">F2F<span>TOUR</span></div>
+  <div class="header-divider"></div>
+  <div class="header-subtitle">Events Calendar Export Tool</div>
+  <div class="header-badge">THE EVENTS CALENDAR</div>
+</header>
+
+<main>
+  <h1 class="page-title">EVENT <em>IMPORTER</em></h1>
+  <p class="page-desc">Upload your F2F qualifier spreadsheet export → get a ready-to-import Events Calendar CSV</p>
+
+  <!-- Settings -->
+  <div class="settings-panel">
+    <div class="settings-title">// Configuration</div>
+    <div class="settings-grid">
+      <div class="setting-item">
+        <label>Round Name (for category + event name)</label>
+        <input type="text" id="roundName" value="2026-27 Round 1 RCQ" placeholder="e.g. 2026-27 Round 1 RCQ">
+      </div>
+      <div class="setting-item">
+        <label>Event Name Template</label>
+        <input type="text" id="eventNameTemplate" value="F2F Tour Qualifier — {format} — {store}" placeholder="{format}, {store}, {round} available">
+      </div>
+      <div class="setting-item setting-full">
+        <label>Event Description</label>
+        <textarea id="eventDescription">F2F Tour Qualifiers are events run by your local WPN game store that give out invites to the F2F Tour Championships to top players! Play Magic: the Gathering at the highest level while supporting your local game stores!</textarea>
+      </div>
+      <div class="setting-item">
+        <label>Plus Kit Category Label (4 Invites)</label>
+        <input type="text" id="plusKitLabel" value="4 Invites Available" placeholder="e.g. 4 Invites Available">
+      </div>
+      <div class="setting-item">
+        <label>Base/Free Kit Category Label (1 Invite)</label>
+        <input type="text" id="baseKitLabel" value="1 Invite Available" placeholder="e.g. 1 Invite Available">
+      </div>
+    </div>
+  </div>
+
+  <!-- Drop Zone -->
+  <div class="drop-zone" id="dropZone">
+    <span class="drop-icon">📂</span>
+    <div class="drop-title">Drop your CSV here</div>
+    <div class="drop-sub">or click to browse — expects the F2F qualifier export format</div>
+    <input type="file" class="file-input" id="fileInput" accept=".csv,.tsv,text/csv,text/tab-separated-values">
+  </div>
+
+  <!-- Errors -->
+  <div class="errors-section" id="errorsSection">
+    <div class="errors-title">⚠ Skipped Rows</div>
+    <div id="errorsList"></div>
+  </div>
+
+  <!-- Preview -->
+  <div class="preview-section" id="previewSection">
+    <div class="section-header">
+      <span class="section-label">// Preview — Output Rows</span>
+      <span class="section-count" id="rowCount">0 events</span>
+    </div>
+    <div class="table-wrap">
+      <table id="previewTable">
+        <thead>
+          <tr>
+            <th>Event Name</th>
+            <th>Start Date</th>
+            <th>End Date</th>
+            <th>Venue</th>
+            <th>Category</th>
+            <th>Tags</th>
+            <th>Website</th>
+          </tr>
+        </thead>
+        <tbody id="previewBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="actions">
+    <button class="btn btn-secondary" id="resetBtn" onclick="reset()">Reset</button>
+    <button class="btn btn-primary" id="exportBtn" disabled onclick="exportCSV()">Export CSV</button>
+    <span class="status-msg" id="statusMsg">✓ CSV Downloaded</span>
+  </div>
+</main>
+
+<footer>F2F TOUR · EVENTS CALENDAR CONVERTER · OUTPUT FORMAT: THE EVENTS CALENDAR PLUGIN</footer>
+
+<script>
+// ── Column indices in the input CSV (0-based) ──────────────────────────────
+// Approved in NS | Event Created | Event Complete | Event Reported |
+// Primary Contact Email | Name on F2F Account | Store Name | Store Address |
+// City | Store Website | How Did You Find Us? | Plus Kit | Base Kit |
+// Event Format | Date of Event | Org ID | Free Kit? | Order# | NS OK | Sam Notes
+const COL = {
+  APPROVED:     0,
+  CREATED:      1,
+  COMPLETE:     2,
+  REPORTED:     3,
+  EMAIL:        4,
+  NAME:         5,
+  STORE:        6,
+  ADDRESS:      7,
+  CITY:         8,
+  WEBSITE:      9,
+  HOW_FOUND:    10,
+  PLUS_KIT:     11,
+  BASE_KIT:     12,
+  FORMAT:       13,
+  DATE:         14,
+  ORG_ID:       15,
+  FREE_KIT:     16,
+  ORDER:        17,
+  NS_OK:        18,
+};
+
+let outputRows = [];
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function clean(s) {
+  return (s || '').trim();
+}
+
+function parseDate(raw) {
+  // Accepts DD/MM/YYYY or MM/DD/YYYY or YYYY-MM-DD
+  raw = clean(raw);
+  if (!raw) return null;
+
+  let d, m, y;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    [y, m, d] = raw.split('-').map(Number);
+  } else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(raw)) {
+    // Treat as DD/MM/YYYY (F2F export style)
+    const parts = raw.split('/');
+    d = parseInt(parts[0], 10);
+    m = parseInt(parts[1], 10);
+    y = parseInt(parts[2], 10);
+  } else {
+    return null;
+  }
+
+  if (isNaN(d) || isNaN(m) || isNaN(y)) return null;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (isNaN(dt)) return null;
+  return dt;
+}
+
+function formatDate(dt) {
+  // The Events Calendar expects MM/DD/YYYY
+  const y = dt.getUTCFullYear();
+  const m = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(dt.getUTCDate()).padStart(2, '0');
+  return `${m}/${d}/${y}`;
+}
+
+function addHours(dt, h) {
+  return new Date(dt.getTime() + h * 3600 * 1000);
+}
+
+function isTrue(v) {
+  return clean(v).toUpperCase() === 'TRUE';
+}
+
+function buildEventName(template, format, store, round) {
+  return template
+    .replace('{format}', format)
+    .replace('{store}', store)
+    .replace('{round}', round);
+}
+
+function buildCategories(roundName, plusKit, freeKit, plusLabel, baseLabel) {
+  const cats = [roundName];
+  if (plusKit) {
+    cats.push(plusLabel);
+  } else {
+    // base kit or free kit
+    cats.push(baseLabel);
+  }
+  return cats.join(',');
+}
+
+function buildTags(format) {
+  // Tag by format: Modern, Sealed, Pioneer, Standard, etc.
+  const f = clean(format);
+  return f || '';
+}
+
+function normalizeWebsite(raw) {
+  raw = clean(raw);
+  if (!raw) return '';
+  if (!/^https?:\/\//i.test(raw)) raw = 'https://' + raw;
+  return raw;
+}
+
+// ── CSV parsing (handles quoted fields) ───────────────────────────────────
+
+function parseCSVLine(line) {
+  const result = [];
+  let cur = '';
+  let inQuote = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuote && line[i + 1] === '"') { cur += '"'; i++; }
+      else { inQuote = !inQuote; }
+    } else if ((ch === ',' || ch === '\t') && !inQuote) {
+      result.push(cur); cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  result.push(cur);
+  return result;
+}
+
+function parseCSV(text) {
+  // Detect delimiter
+  const firstLine = text.split('\n')[0];
+  const tabCount = (firstLine.match(/\t/g) || []).length;
+  const commaCount = (firstLine.match(/,/g) || []).length;
+  const delim = tabCount > commaCount ? '\t' : ',';
+
+  const lines = text.split('\n').map(l => l.replace(/\r$/, ''));
+  const rows = lines.map(l => parseCSVLine(l));
+  return { rows, delim };
+}
+
+// ── Core transform ─────────────────────────────────────────────────────────
+
+function processData(text) {
+  const { rows } = parseCSV(text);
+  const errors = [];
+  const output = [];
+
+  const template = document.getElementById('eventNameTemplate').value;
+  const roundName = document.getElementById('roundName').value.trim();
+  const description = document.getElementById('eventDescription').value.trim();
+  const plusLabel = document.getElementById('plusKitLabel').value.trim();
+  const baseLabel = document.getElementById('baseKitLabel').value.trim();
+
+  // Skip header row(s): find first row where col[14] looks like a date
+  let startRow = 0;
+  for (let i = 0; i < Math.min(5, rows.length); i++) {
+    const maybeDate = clean(rows[i][COL.DATE] || '');
+    if (parseDate(maybeDate)) { startRow = i; break; }
+    startRow = i + 1;
+  }
+
+  for (let i = startRow; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length < 14) continue;
+
+    const store = clean(row[COL.STORE]);
+    const rawDate = clean(row[COL.DATE]);
+    const format = clean(row[COL.FORMAT]);
+    const website = normalizeWebsite(row[COL.WEBSITE]);
+
+    // Skip blank rows
+    if (!store && !rawDate) continue;
+
+    const startDt = parseDate(rawDate);
+    if (!startDt) {
+      errors.push(`Row ${i + 1}: unrecognised date "${rawDate}" — skipped`);
+      continue;
+    }
+
+    if (!store) {
+      errors.push(`Row ${i + 1}: missing store name — skipped`);
+      continue;
+    }
+
+    const isPlusKit = !!clean(row[COL.PLUS_KIT]);
+    const isFreeKit = isTrue(row[COL.FREE_KIT]);
+
+    const endDt = addHours(startDt, 7); // default +7h same day
+
+    const eventName = buildEventName(template, format || 'TBD', store, roundName);
+    const categories = buildCategories(roundName, isPlusKit, isFreeKit, plusLabel, baseLabel);
+    const tags = buildTags(format);
+
+    output.push({
+      'Event Name': eventName,
+      'Event Description': description,
+      'Start Date': formatDate(startDt),
+      'End Date': formatDate(endDt),
+      'All Day Event': 'TRUE',
+      'Event Venue Name': store,
+      'Event Organizers': store,
+      'Event Category': categories,
+      'Event Tags': tags,
+      'Event Website': website,
+      // for preview
+      _isPlusKit: isPlusKit,
+      _isFreeKit: isFreeKit,
+      _format: format,
+    });
+  }
+
+  return { output, errors };
+}
+
+// ── UI rendering ───────────────────────────────────────────────────────────
+
+function renderPreview(rows) {
+  const body = document.getElementById('previewBody');
+  body.innerHTML = '';
+  document.getElementById('rowCount').textContent = `${rows.length} event${rows.length !== 1 ? 's' : ''}`;
+
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+
+    const cats = r['Event Category'].split(',').map(c => `<span class="cat-chip">${c.trim()}</span>`).join('');
+    const tags = r['Event Tags'].split(',').filter(Boolean).map(t => `<span class="tag-chip">${t.trim()}</span>`).join('');
+
+    tr.innerHTML = `
+      <td>${r['Event Name']}</td>
+      <td class="mono">${r['Start Date']}</td>
+      <td class="mono">${r['End Date']}</td>
+      <td>${r['Event Venue Name']}</td>
+      <td>${cats}</td>
+      <td>${tags || '<span style="color:var(--text-dimmer)">—</span>'}</td>
+      <td class="mono">${r['Event Website'] ? '<a href="'+r['Event Website']+'" style="color:var(--accent2);text-decoration:none" target="_blank">↗</a>' : '—'}</td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+function renderErrors(errors) {
+  const sec = document.getElementById('errorsSection');
+  const list = document.getElementById('errorsList');
+  if (!errors.length) { sec.classList.remove('visible'); return; }
+  sec.classList.add('visible');
+  list.innerHTML = errors.map(e => `<div class="error-item">· ${e}</div>`).join('');
+}
+
+// ── File handling ──────────────────────────────────────────────────────────
+
+function handleFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result;
+    const { output, errors } = processData(text);
+    outputRows = output;
+
+    renderErrors(errors);
+
+    if (output.length) {
+      renderPreview(output);
+      document.getElementById('previewSection').classList.add('visible');
+      document.getElementById('exportBtn').disabled = false;
+
+      // Update drop zone
+      const dz = document.getElementById('dropZone');
+      dz.classList.add('has-file');
+      dz.querySelector('.drop-title').textContent = `✓ ${file.name}`;
+      dz.querySelector('.drop-sub').textContent = `${output.length} events parsed · ${errors.length} skipped`;
+    }
+  };
+  reader.readAsText(file);
+}
+
+// Drop zone events
+const dz = document.getElementById('dropZone');
+const fi = document.getElementById('fileInput');
+
+dz.addEventListener('click', () => fi.click());
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+dz.addEventListener('drop', e => {
+  e.preventDefault();
+  dz.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+fi.addEventListener('change', () => {
+  if (fi.files[0]) handleFile(fi.files[0]);
+});
+
+// ── Export ─────────────────────────────────────────────────────────────────
+
+const HEADERS = [
+  'Event Name', 'Event Description', 'Start Date', 'End Date',
+  'All Day Event', 'Event Venue Name', 'Event Organizers',
+  'Event Category', 'Event Tags', 'Event Website'
+];
+
+function escapeCSV(v) {
+  v = String(v ?? '');
+  if (v.includes(',') || v.includes('"') || v.includes('\n')) {
+    v = '"' + v.replace(/"/g, '""') + '"';
+  }
+  return v;
+}
+
+function exportCSV() {
+  const lines = [HEADERS.map(escapeCSV).join(',')];
+  outputRows.forEach(r => {
+    const line = HEADERS.map(h => escapeCSV(r[h] || '')).join(',');
+    lines.push(line);
+  });
+
+  const blob = new Blob([lines.join('\r\n')], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `f2f-events-calendar-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  const msg = document.getElementById('statusMsg');
+  msg.classList.add('show');
+  setTimeout(() => msg.classList.remove('show'), 3000);
+}
+
+// ── Reset ──────────────────────────────────────────────────────────────────
+
+function reset() {
+  outputRows = [];
+  document.getElementById('previewSection').classList.remove('visible');
+  document.getElementById('errorsSection').classList.remove('visible');
+  document.getElementById('exportBtn').disabled = true;
+  document.getElementById('fileInput').value = '';
+  const dz = document.getElementById('dropZone');
+  dz.classList.remove('has-file', 'dragover');
+  dz.querySelector('.drop-title').textContent = 'Drop your CSV here';
+  dz.querySelector('.drop-sub').textContent = 'or click to browse — expects the F2F qualifier export format';
+  document.getElementById('previewBody').innerHTML = '';
+}
+</script>
+</body>
+</html>
