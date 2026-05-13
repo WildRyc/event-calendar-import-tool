@@ -475,8 +475,8 @@
         <input type="text" id="roundName" value="2026-27 Round 1 RCQ" placeholder="e.g. 2026-27 Round 1 RCQ">
       </div>
       <div class="setting-item">
-        <label>Event Name Template</label>
-        <input type="text" id="eventNameTemplate" value="F2F Tour Qualifier — {format} — {store}" placeholder="{format}, {store}, {round} available">
+        <label>Event Name Prefix</label>
+        <input type="text" id="eventNamePrefix" value="F2F Tour" placeholder="e.g. F2F Tour">
       </div>
       <div class="setting-item setting-full">
         <label>Event Description</label>
@@ -499,6 +499,17 @@
     <div class="drop-title">Drop your CSV here</div>
     <div class="drop-sub">or click to browse — expects the F2F qualifier export format</div>
     <input type="file" class="file-input" id="fileInput" accept=".csv,.tsv,text/csv,text/tab-separated-values">
+  </div>
+
+  <!-- Paste Zone -->
+  <div style="margin-bottom:28px;">
+    <div class="section-header" style="margin-bottom:10px;">
+      <span class="section-label">// Or paste raw data directly</span>
+    </div>
+    <div style="display:flex;gap:10px;align-items:flex-start;">
+      <textarea id="pasteInput" placeholder="Paste tab-separated rows here (with or without header row)…" style="flex:1;background:var(--surface);border:1px solid var(--border);color:var(--text);font-family:'DM Mono',monospace;font-size:11px;padding:12px 14px;border-radius:4px;outline:none;resize:vertical;min-height:90px;line-height:1.5;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent2)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+      <button class="btn btn-secondary" style="white-space:nowrap;margin-top:0;" onclick="processPaste()">Parse →</button>
+    </div>
   </div>
 
   <!-- Errors -->
@@ -618,11 +629,10 @@ function isTrue(v) {
   return clean(v).toUpperCase() === 'TRUE';
 }
 
-function buildEventName(template, format, store, round) {
-  return template
-    .replace('{format}', format)
-    .replace('{store}', store)
-    .replace('{round}', round);
+function buildEventName(prefix, format, store, inviteLabel) {
+  // Format: "F2F Tour Modern Qualifier – 401 Games Downtown (4 Invites Available)"
+  const f = format || 'TBD';
+  return `${prefix} ${f} Qualifier \u2013 ${store} (${inviteLabel})`;
 }
 
 function buildCategories(roundName, plusKit, freeKit, plusLabel, baseLabel) {
@@ -645,6 +655,12 @@ function buildTags(format) {
 function normalizeWebsite(raw) {
   raw = clean(raw);
   if (!raw) return '';
+  // Strip markdown link syntax: [text](url) → url
+  const mdMatch = raw.match(/\[.*?\]\((https?:\/\/[^)]+)\)/);
+  if (mdMatch) raw = mdMatch[1];
+  // Also handle bare markdown without protocol in the parens
+  const mdBare = raw.match(/\[.*?\]\(([^)]+)\)/);
+  if (mdBare) raw = mdBare[1];
   if (!/^https?:\/\//i.test(raw)) raw = 'https://' + raw;
   return raw;
 }
@@ -689,7 +705,7 @@ function processData(text) {
   const errors = [];
   const output = [];
 
-  const template = document.getElementById('eventNameTemplate').value;
+  const prefix = document.getElementById('eventNamePrefix').value.trim();
   const roundName = document.getElementById('roundName').value.trim();
   const description = document.getElementById('eventDescription').value.trim();
   const plusLabel = document.getElementById('plusKitLabel').value.trim();
@@ -731,7 +747,8 @@ function processData(text) {
 
     const endDt = addHours(startDt, 7); // default +7h same day
 
-    const eventName = buildEventName(template, format || 'TBD', store, roundName);
+    const inviteLabel = isPlusKit ? plusLabel : baseLabel;
+    const eventName = buildEventName(prefix, format, store, inviteLabel);
     const categories = buildCategories(roundName, isPlusKit, isFreeKit, plusLabel, baseLabel);
     const tags = buildTags(format);
 
@@ -816,6 +833,25 @@ function handleFile(file) {
   reader.readAsText(file);
 }
 
+// ── Paste handling ─────────────────────────────────────────────────────────
+
+function processPaste() {
+  const text = document.getElementById('pasteInput').value.trim();
+  if (!text) return;
+  const { output, errors } = processData(text);
+  outputRows = output;
+  renderErrors(errors);
+  if (output.length) {
+    renderPreview(output);
+    document.getElementById('previewSection').classList.add('visible');
+    document.getElementById('exportBtn').disabled = false;
+    const dz = document.getElementById('dropZone');
+    dz.classList.add('has-file');
+    dz.querySelector('.drop-title').textContent = `✓ Pasted data`;
+    dz.querySelector('.drop-sub').textContent = `${output.length} events parsed · ${errors.length} skipped`;
+  }
+}
+
 // Drop zone events
 const dz = document.getElementById('dropZone');
 const fi = document.getElementById('fileInput');
@@ -877,6 +913,7 @@ function reset() {
   document.getElementById('errorsSection').classList.remove('visible');
   document.getElementById('exportBtn').disabled = true;
   document.getElementById('fileInput').value = '';
+  document.getElementById('pasteInput').value = '';
   const dz = document.getElementById('dropZone');
   dz.classList.remove('has-file', 'dragover');
   dz.querySelector('.drop-title').textContent = 'Drop your CSV here';
