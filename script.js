@@ -110,9 +110,104 @@ if (!/^https?:\/\//i.test(raw)) raw = 'https://' + raw;
 return raw;
 }
 
+function isWebsiteLike(raw) {
+const s = clean(raw).toLowerCase();
+if (!s) return false;
+if (s.startsWith('http://') || s.startsWith('https://')) return true;
+// bare domains like example.com or sub.domain.ca/path
+return /^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(s);
+}
+
+function resolveRowFields(row) {
+const legacy = {
+    store: clean(row[COL.STORE]),
+    city: clean(row[COL.CITY]),
+    website: clean(row[COL.WEBSITE]),
+};
+
+const alt = {
+    store: clean(row[4]),
+    city: clean(row[6]),
+    website: clean(row[7]),
+};
+
+let legacyScore = 0;
+let altScore = 0;
+
+if (legacy.store) legacyScore++;
+if (isWebsiteLike(legacy.website)) legacyScore++;
+if (parseDate(clean(row[COL.DATE] || ''))) legacyScore++;
+if (clean(row[COL.HOW_FOUND]) && !/^\d+$/.test(clean(row[COL.HOW_FOUND]))) legacyScore++;
+
+if (alt.store) altScore++;
+if (isWebsiteLike(alt.website)) altScore++;
+if (parseDate(clean(row[12] || ''))) altScore++;
+if (/^\d+$/.test(clean(row[9] || ''))) altScore++;
+
+if (altScore > legacyScore) {
+    return alt;
+}
+return legacy;
+}
+
+function isPlusKitValue(v) {
+const s = clean(v).toLowerCase();
+return s.includes('plus');
+}
+
+function uniqueEvents(events) {
+const seen = new Set();
+return events.filter(e => {
+const key = [
+    e.date ? e.date.toISOString().slice(0, 10) : '',
+    clean(e.format).toLowerCase(),
+    e.isPlusKit ? 'plus' : 'base'
+].join('|');
+if (seen.has(key)) return false;
+seen.add(key);
+return true;
+});
+}
+
+function extractEventsFromRow(row) {
+const events = [];
+
+// Legacy export layout (fixed columns)
+const legacyDate = parseDate(clean(row[COL.DATE] || ''));
+if (legacyDate) {
+const legacyPlus = !!clean(row[COL.PLUS_KIT]);
+const legacyBase = !!clean(row[COL.BASE_KIT]);
+events.push({
+    date: legacyDate,
+    format: clean(row[COL.FORMAT]),
+    isPlusKit: legacyPlus || isPlusKitValue(row[COL.BASE_KIT]),
+    isFreeKit: isTrue(row[COL.FREE_KIT]),
+    hasKit: legacyPlus || legacyBase,
+});
+}
+
+// Alternate qualifier form layout: repeating [Kit, Format, Date] groups
+for (let i = 10; i <= row.length - 3; i++) {
+const date = parseDate(clean(row[i + 2] || ''));
+if (!date) continue;
+
+const kitRaw = clean(row[i]);
+const formatRaw = clean(row[i + 1]);
+events.push({
+    date,
+    format: formatRaw,
+    isPlusKit: isPlusKitValue(kitRaw),
+    isFreeKit: false,
+    hasKit: !!kitRaw,
+});
+}
+
+return uniqueEvents(events);
+}
+
 // ── CSV parsing (handles quoted fields) ───────────────────────────────────
 
-function parseCSVLine(line) {
+function parseCSVLine(line, delim) {
 const result = [];
 let cur = '';
 let inQuote = false;
@@ -121,7 +216,7 @@ const ch = line[i];
 if (ch === '"') {
     if (inQuote && line[i + 1] === '"') { cur += '"'; i++; }
     else { inQuote = !inQuote; }
-} else if ((ch === ',' || ch === '\t') && !inQuote) {
+} else if (ch === delim && !inQuote) {
     result.push(cur); cur = '';
 } else {
     cur += ch;
@@ -132,14 +227,21 @@ return result;
 }
 
 function parseCSV(text) {
+// Some pasted inputs can accidentally merge two submissions on one line.
+// Insert a line break before a new timestamp token that appears after a tab.
+const normalizedText = text.replace(
+    /	(\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}:\d{2}\t)/g,
+    '\n$1'
+);
+
 // Detect delimiter
-const firstLine = text.split('\n')[0];
+const firstLine = normalizedText.split('\n')[0];
 const tabCount = (firstLine.match(/\t/g) || []).length;
 const commaCount = (firstLine.match(/,/g) || []).length;
 const delim = tabCount > commaCount ? '\t' : ',';
 
-const lines = text.split('\n').map(l => l.replace(/\r$/, ''));
-const rows = lines.map(l => parseCSVLine(l));
+const lines = normalizedText.split('\n').map(l => l.replace(/\r$/, ''));
+const rows = lines.map(l => parseCSVLine(l, delim));
 return { rows, delim };
 }
 
@@ -159,26 +261,25 @@ const baseLabel = document.getElementById('baseKitLabel').value.trim();
 // Skip header row(s): find first row where col[14] looks like a date
 let startRow = 0;
 for (let i = 0; i < Math.min(5, rows.length); i++) {
-const maybeDate = clean(rows[i][COL.DATE] || '');
-if (parseDate(maybeDate)) { startRow = i; break; }
+const sampleEvents = extractEventsFromRow(rows[i] || []);
+if (sampleEvents.length) { startRow = i; break; }
 startRow = i + 1;
 }
 
 for (let i = startRow; i < rows.length; i++) {
 const row = rows[i];
-if (!row || row.length < 14) continue;
+if (!row || row.length < 8) continue;
 
-const store = clean(row[COL.STORE]);
-const rawDate = clean(row[COL.DATE]);
-const format = clean(row[COL.FORMAT]);
-const website = normalizeWebsite(row[COL.WEBSITE]);
+const fields = resolveRowFields(row);
+const store = clean(fields.store || fields.city);
+const website = normalizeWebsite(fields.website);
+const events = extractEventsFromRow(row);
 
 // Skip blank rows
-if (!store && !rawDate) continue;
+if (!store && !events.length) continue;
 
-const startDt = parseDate(rawDate);
-if (!startDt) {
-    errors.push(`Row ${i + 1}: unrecognised date "${rawDate}" — skipped`);
+if (!events.length) {
+    errors.push(`Row ${i + 1}: unrecognised event columns — skipped`);
     continue;
 }
 
@@ -187,8 +288,11 @@ if (!store) {
     continue;
 }
 
-const isPlusKit = !!clean(row[COL.PLUS_KIT]);
-const isFreeKit = isTrue(row[COL.FREE_KIT]);
+events.forEach(event => {
+const startDt = event.date;
+const format = event.format;
+const isPlusKit = event.isPlusKit;
+const isFreeKit = event.isFreeKit;
 
 const endDt = addHours(startDt, 7); // default +7h same day
 
@@ -212,6 +316,7 @@ output.push({
     _isPlusKit: isPlusKit,
     _isFreeKit: isFreeKit,
     _format: format,
+});
 });
 }
 
