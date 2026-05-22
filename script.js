@@ -107,6 +107,13 @@ if (mdMatch) raw = mdMatch[1];
 const mdBare = raw.match(/\[.*?\]\(([^)]+)\)/);
 if (mdBare) raw = mdBare[1];
 if (!/^https?:\/\//i.test(raw)) raw = 'https://' + raw;
+try {
+    const url = new URL(raw);
+    url.hostname = url.hostname.toLowerCase();
+    raw = url.toString();
+} catch (_) {
+    // Keep original normalized value if URL parsing fails.
+}
 return raw;
 }
 
