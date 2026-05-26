@@ -200,6 +200,7 @@ if (!date) continue;
 
 const kitRaw = clean(row[i]);
 const formatRaw = clean(row[i + 1]);
+if (!kitRaw || !formatRaw) continue;
 events.push({
     date,
     format: formatRaw,
